@@ -242,20 +242,24 @@ const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch (e)
 function showKey() { $("rg").hidden = $("set").value !== "countries"; const on = $("set").value === "realclubs"; $("key").hidden = !on; if (on && !$("key").value) $("key").value = store.get("apisports_key"); }
 const clubItem = (name, url, alt) => ({ name, kind: "img", url, alt, fit: "contain", bg: "#eeeef4" });
 // keyless route: ESPN's public team feed (TheSportsDB blocks browsers, so it can't be used from a page)
+
 async function viaEspn() {
-  const slugs = ["eng.1", "esp.1", "ger.1", "ita.1", "fra.1", "ned.1", "por.1", "sco.1", "tur.1", "bel.1", "usa.1", "bra.1", "arg.1", "mex.1"];
-  const res = await Promise.allSettled(slugs.map(l => fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${l}/teams?limit=100`).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })));
-  const items = [], seen = new Set(); let err = "";
-  for (const r of res) {
-    if (r.status === "rejected") { err = err || (r.reason && r.reason.message) || "request failed"; continue; }
-    const lg = r.value && r.value.sports && r.value.sports[0] && r.value.sports[0].leagues && r.value.sports[0].leagues[0];
-    for (const t of (lg && lg.teams) || []) {
-      const m = t.team, logo = m && m.logos && m.logos[0] && m.logos[0].href;
-      if (logo && !seen.has(m.id)) { seen.add(m.id); items.push(clubItem(m.displayName || m.name, logo)); }
-    }
+  const response = await fetch("/api/clubs");
+
+  if (!response.ok) {
+    throw new Error(`Team API failed: HTTP ${response.status}`);
   }
-  return { items, err };
+
+  const data = await response.json();
+
+  return {
+    items: (data.items || []).map(team =>
+      clubItem(team.name, team.logo)
+    ),
+    err: ""
+  };
 }
+
 // optional route: API-Sports with your own key
 async function viaApiSports(key) {
   const call = async (league, season) => {
